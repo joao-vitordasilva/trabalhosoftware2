@@ -25,9 +25,9 @@ export interface Curriculo {
   avatar: string;
 }
 
-const STORAGE_KEY = "sistema_curriculos_v1";
+const STORAGE_KEY = "novaglow-curriculos-v2-2026";
 
-export const initialCurriculos: Curriculo[] = [
+const baseCurriculos: Curriculo[] = [
   {
     id: "1",
     nome: "Maria Silva",
@@ -35,8 +35,7 @@ export const initialCurriculos: Curriculo[] = [
     email: "maria.silva@example.com",
     telefone: "(11) 98123-4567",
     cpf: "123.456.789-10",
-    resumo:
-      "Profissional com 5 anos de experiencia em desenvolvimento front-end, especializada em React e acessibilidade web.",
+    resumo: "Profissional com 5 anos de experiencia em desenvolvimento front-end, especializada em React e acessibilidade web.",
     experiencias: [
       {
         empresa: "TecnoWeb",
@@ -53,7 +52,7 @@ export const initialCurriculos: Curriculo[] = [
       },
     ],
     habilidades: ["React", "Next.js", "TypeScript", "Tailwind CSS", "Acessibilidade"],
-    avatar: "/avatar-1.svg",
+    avatar: "/avatar-three.svg",
   },
   {
     id: "2",
@@ -62,8 +61,7 @@ export const initialCurriculos: Curriculo[] = [
     email: "joao.pereira@example.com",
     telefone: "(21) 98765-4321",
     cpf: "987.654.321-00",
-    resumo:
-      "Analista de dados orientado a resultados, com experiencia em dashboards, ETL e visualizacao de informacoes estrategicas.",
+    resumo: "Analista de dados orientado a resultados, com experiencia em dashboards, ETL e visualizacao de informacoes estrategicas.",
     experiencias: [
       {
         empresa: "Data Insights",
@@ -80,20 +78,21 @@ export const initialCurriculos: Curriculo[] = [
       },
     ],
     habilidades: ["SQL", "Python", "Power BI", "ETL", "Modelagem de Dados"],
-    avatar: "/avatar-2.svg",
+    avatar: "/avatar-four.svg",
   },
 ];
 
-export function loadCurriculos(): Curriculo[] {
-  if (typeof window === "undefined") return initialCurriculos;
+export const initialCurriculos = baseCurriculos;
 
+export function loadCurriculos(): Curriculo[] {
+  if (typeof window === "undefined") return baseCurriculos;
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) return initialCurriculos;
-    const parsed = JSON.parse(stored) as Curriculo[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : initialCurriculos;
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+    if (!saved) return baseCurriculos;
+    const parsed = JSON.parse(saved) as Curriculo[];
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : baseCurriculos;
   } catch {
-    return initialCurriculos;
+    return baseCurriculos;
   }
 }
 

@@ -14,9 +14,9 @@ import Footer from "../../../../componentes/footer";
 import { Button } from "../../../../componentes/ui/button";
 import { Input } from "../../../../componentes/ui/input";
 import { Textarea } from "../../../../componentes/ui/textarea";
-import { Curriculo, Formacao, Experiencia, loadCurriculos, saveCurriculos } from "../data";
+import { Curriculo, Experiencia, Formacao, loadCurriculos, saveCurriculos } from "../data";
 
-type FormValues = {
+type ResumeDraft = {
   nome: string;
   cargo: string;
   email: string;
@@ -29,7 +29,7 @@ type FormValues = {
   formacoes: Formacao[];
 };
 
-const schema = yup.object({
+const validationSchema = yup.object({
   nome: yup.string().required("Nome e obrigatorio").min(3, "Nome precisa ter ao menos 3 caracteres."),
   cargo: yup.string().required("Cargo e obrigatorio").min(3, "Cargo precisa ter ao menos 3 caracteres."),
   email: yup.string().required("E-mail e obrigatorio").email("Digite um e-mail valido."),
@@ -38,38 +38,11 @@ const schema = yup.object({
   resumo: yup.string().required("Resumo profissional e obrigatorio").min(30, "Resumo deve ter ao menos 30 caracteres."),
   habilidades: yup.string().required("Habilidades sao obrigatorias").min(5, "Liste ao menos uma habilidade."),
   avatar: yup.mixed().nullable(),
-  experiencias: yup
-    .array()
-    .of(
-      yup.object({
-        empresa: yup.string().required("Empresa e obrigatoria."),
-        cargo: yup.string().required("Cargo e obrigatorio."),
-        periodo: yup.string().required("Periodo e obrigatorio."),
-        descricao: yup.string().required("Descricao e obrigatoria.").min(20, "Descricao muito curta."),
-      }),
-    )
-    .min(1, "Adicione ao menos uma experiencia profissional."),
-  formacoes: yup
-    .array()
-    .of(
-      yup.object({
-        instituicao: yup.string().required("Instituicao e obrigatoria."),
-        curso: yup.string().required("Curso e obrigatorio."),
-        periodo: yup.string().required("Periodo e obrigatorio."),
-      }),
-    )
-    .min(1, "Adicione ao menos uma formacao academica."),
+  experiencias: yup.array().of(yup.object({ empresa: yup.string().required("Empresa e obrigatoria."), cargo: yup.string().required("Cargo e obrigatorio."), periodo: yup.string().required("Periodo e obrigatorio."), descricao: yup.string().required("Descricao e obrigatoria.").min(20, "Descricao muito curta.") })).min(1, "Adicione ao menos uma experiencia profissional."),
+  formacoes: yup.array().of(yup.object({ instituicao: yup.string().required("Instituicao e obrigatoria."), curso: yup.string().required("Curso e obrigatorio."), periodo: yup.string().required("Periodo e obrigatorio.") })).min(1, "Adicione ao menos uma formacao academica."),
 });
 
-function generateCurriculoId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `curr-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-const defaultValues: FormValues = {
+const formSeed: ResumeDraft = {
   nome: "",
   cargo: "",
   email: "",
@@ -82,18 +55,23 @@ const defaultValues: FormValues = {
   formacoes: [{ instituicao: "", curso: "", periodo: "" }],
 };
 
-function extractErrorMessage(errors: FieldErrors<FormValues>): string {
-  if (!errors) return "Erro na validacao.";
-  const error = Object.values(errors)[0];
-  if (!error) return "Erro na validacao.";
-  if (typeof error === "string") return error;
-  if (Array.isArray(error)) return extractErrorMessage(error as unknown as FieldErrors<FormValues>);
-  return typeof error.message === "string" ? error.message : "Erro na validacao.";
+function nextResumeId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `curr-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function extractFirstIssue(formIssues: FieldErrors<ResumeDraft>): string {
+  if (!formIssues) return "Erro na validacao.";
+  const firstValue = Object.values(formIssues)[0];
+  if (!firstValue) return "Erro na validacao.";
+  if (typeof firstValue === "string") return firstValue;
+  if (Array.isArray(firstValue)) return extractFirstIssue(firstValue as unknown as FieldErrors<ResumeDraft>);
+  return typeof firstValue.message === "string" ? firstValue.message : "Erro na validacao.";
 }
 
 export default function NovoCurriculoPage() {
   const router = useRouter();
-  const [preview, setPreview] = useState("/avatar-placeholder.svg");
+  const [previewImage, setPreviewImage] = useState("/next.svg");
 
   const {
     register,
@@ -102,330 +80,251 @@ export default function NovoCurriculoPage() {
     setValue,
     formState: { errors, isSubmitting, isValid },
     reset,
-  } = useForm<FormValues>({
+  } = useForm<ResumeDraft>({
     mode: "onTouched",
-    defaultValues,
-    resolver: yupResolver(schema) as Resolver<FormValues>,
+    defaultValues: formSeed,
+    resolver: yupResolver(validationSchema) as Resolver<ResumeDraft>,
   });
 
-  const experiencias = useFieldArray({ control, name: "experiencias" });
-  const formacoes = useFieldArray({ control, name: "formacoes" });
+  const workCollection = useFieldArray({ control, name: "experiencias" });
+  const studyCollection = useFieldArray({ control, name: "formacoes" });
 
-  const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const syncAvatarPreview = (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     setValue("avatar", files);
-
     if (files && files.length > 0) {
-      const url = URL.createObjectURL(files[0]);
-      setPreview(url);
-    } else {
-      setPreview("/avatar-placeholder.svg");
+      setPreviewImage(URL.createObjectURL(files[0]));
+      return;
     }
+    setPreviewImage("/next.svg");
   };
 
-  const onSubmit: SubmitHandler<FormValues> = (data) => {
-    const skills = data.habilidades
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    const novo: Curriculo = {
-      id: generateCurriculoId(),
-      nome: data.nome,
-      cargo: data.cargo,
-      email: data.email,
-      telefone: data.telefone,
-      cpf: data.cpf,
-      resumo: data.resumo,
-      experiencias: data.experiencias,
-      formacoes: data.formacoes,
-      habilidades: skills,
-      avatar: preview || "/avatar-placeholder.svg",
+  const saveResume: SubmitHandler<ResumeDraft> = (draft) => {
+    const normalizedAbilities = draft.habilidades.split(",").map((entry) => entry.trim()).filter(Boolean);
+    const createdProfile: Curriculo = {
+      id: nextResumeId(),
+      nome: draft.nome,
+      cargo: draft.cargo,
+      email: draft.email,
+      telefone: draft.telefone,
+      cpf: draft.cpf,
+      resumo: draft.resumo,
+      experiencias: draft.experiencias,
+      formacoes: draft.formacoes,
+      habilidades: normalizedAbilities,
+      avatar: previewImage || "/next.svg",
     };
-
-    saveCurriculos([novo, ...loadCurriculos()]);
+    saveCurriculos([createdProfile, ...loadCurriculos()]);
     toast.success("Curriculo salvo com sucesso.");
-    reset(defaultValues);
+    reset(formSeed);
     router.push("/sistema/paginas/curriculos");
   };
 
-  const onError = (formErrors: FieldErrors<FormValues>) => {
-    toast.error(extractErrorMessage(formErrors));
-  };
-
   return (
-    <div className="site-frame flex min-h-screen flex-col">
+    <div className="site-shell">
       <Header />
+      <main className="main-v2">
+        <div className="intro-v2">
+          <div>
+            <h1 className="title-v2">Novo curriculo</h1>
+            <p className="copy-v2">Preencha os dados principais, experiencias, formacoes e habilidades.</p>
+          </div>
+          <Link href="/sistema/paginas/curriculos" className="btn-secondary">
+            Voltar para a lista
+          </Link>
+        </div>
 
-      <main className="site-main">
-        <div className="shell page-space">
-          <section className="page-panel">
-            <div className="page-top">
-              <div className="max-w-3xl">
-                <span className="section-kicker">Cadastrar</span>
-                <h1 className="section-title">Formulario completo com validacao, mascara e field arrays.</h1>
-                <p className="section-copy mt-4 text-sm sm:text-base">
-                  A logica do formulario permanece intacta: Yup, React Hook Form, upload fake de imagem,
-                  Sonner e os blocos dinamicos de experiencias e formacoes continuam funcionando.
-                </p>
+        <div className="pair-v2">
+          <aside className="aside-v2">
+            <strong>Resumo do envio</strong>
+            <p className="copy-v2">O cadastro mantem validacao, upload fake, arrays dinamicos e persistencia local.</p>
+            <div className="preview-v2">
+              <div className="avatar-v2">
+                <Image src={previewImage} alt="Avatar" fill className="object-cover" />
               </div>
-
-              <div className="toolbar-actions">
-                <Link href="/sistema/paginas/curriculos" className="btn-secondary">
-                  Voltar para a lista
-                </Link>
+              <div className="field-stack-v2">
+                <span className="hint-v2">Preview da imagem</span>
+                <span className="copy-v2">A foto e opcional e compoe a ficha do candidato.</span>
               </div>
             </div>
+          </aside>
 
-            <form onSubmit={handleSubmit(onSubmit, onError)} className="stack-list mt-8">
-              <div className="form-grid">
-                <section className="panel-card surface-card">
-                  <div className="panel-heading">
-                    <div>
-                      <span className="section-kicker">Perfil</span>
-                      <h2>Dados principais</h2>
-                    </div>
-                    <span className="status-chip">Obrigatorio</span>
-                  </div>
+          <form onSubmit={handleSubmit(saveResume, (formErrors) => toast.error(extractFirstIssue(formErrors)))} className="form-page-v2">
+            <section className="section-v2">
+              <div className="line-v2">
+                <div>
+                  <h2 className="title-v2">Informacoes principais</h2>
+                  <p className="copy-v2">Dados basicos do curriculo.</p>
+                </div>
+              </div>
+              <div className="pair-v2">
+                <label className="label-v2">
+                  <span>Nome</span>
+                  <Input {...register("nome")} type="text" placeholder="Nome completo" />
+                  {errors.nome && <span className="error-text">{errors.nome.message?.toString()}</span>}
+                </label>
+                <label className="label-v2">
+                  <span>Cargo desejado</span>
+                  <Input {...register("cargo")} type="text" placeholder="Cargo desejado" />
+                  {errors.cargo && <span className="error-text">{errors.cargo.message?.toString()}</span>}
+                </label>
+              </div>
+              <label className="label-v2">
+                <span>Resumo profissional</span>
+                <Textarea {...register("resumo")} placeholder="Descreva experiencia e competencias" />
+                {errors.resumo && <span className="error-text">{errors.resumo.message?.toString()}</span>}
+              </label>
+            </section>
 
-                  <div className="field-grid mt-6 md:grid-cols-2">
-                    <div className="field-group">
-                      <label className="field-label">Nome</label>
-                      <Input {...register("nome")} type="text" placeholder="Nome completo" />
-                      {errors.nome && <p className="error-text">{errors.nome.message?.toString()}</p>}
-                    </div>
-
-                    <div className="field-group">
-                      <label className="field-label">Cargo desejado</label>
-                      <Input {...register("cargo")} type="text" placeholder="Cargo desejado" />
-                      {errors.cargo && <p className="error-text">{errors.cargo.message?.toString()}</p>}
-                    </div>
-                  </div>
-
-                  <div className="field-grid mt-6 lg:grid-cols-3">
-                    <div className="field-group">
-                      <label className="field-label">E-mail</label>
-                      <Input {...register("email")} type="email" placeholder="nome@exemplo.com" />
-                      {errors.email && <p className="error-text">{errors.email.message?.toString()}</p>}
-                    </div>
-
-                    <div className="field-group">
-                      <label className="field-label">Telefone</label>
-                      <Controller
-                        name="telefone"
-                        control={control}
-                        render={({ field }) => (
-                          <IMaskInput
-                            {...field}
-                            mask="(00) 00000-0000"
-                            placeholder="(99) 99999-9999"
-                            className="input-shell"
-                          />
-                        )}
-                      />
-                      {errors.telefone && <p className="error-text">{errors.telefone.message?.toString()}</p>}
-                    </div>
-
-                    <div className="field-group">
-                      <label className="field-label">CPF</label>
-                      <Controller
-                        name="cpf"
-                        control={control}
-                        render={({ field }) => (
-                          <IMaskInput
-                            {...field}
-                            mask="000.000.000-00"
-                            placeholder="000.000.000-00"
-                            className="input-shell"
-                          />
-                        )}
-                      />
-                      {errors.cpf && <p className="error-text">{errors.cpf.message?.toString()}</p>}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="panel-card surface-card">
-                  <div className="panel-heading">
-                    <div>
-                      <span className="section-kicker">Imagem</span>
-                      <h2>Upload fake com pre-visualizacao</h2>
-                    </div>
-                    <span className="status-chip">Opcional</span>
-                  </div>
-
-                  <div className="stack-list mt-6">
-                    <div className="preview-card">
-                      <div className="avatar-frame">
-                        <Image src={preview} alt="Avatar" fill className="object-cover" />
-                      </div>
-                      <div>
-                        <strong>Previa da foto</strong>
-                        <p className="panel-copy m-0 mt-2">
-                          O arquivo continua sendo processado apenas na camada visual, sem backend.
-                        </p>
-                      </div>
-                    </div>
-
-                    <Controller
-                      name="avatar"
-                      control={control}
-                      render={({ field }) => (
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(event) => {
-                            field.onChange(event.target.files);
-                            handleAvatarChange(event);
-                          }}
-                          className="input-shell file:mr-4 file:rounded-full file:border-0 file:bg-white/90 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-900"
-                        />
-                      )}
+            <section className="light-v2">
+              <div className="line-v2">
+                <div>
+                  <h2 className="title-v2">Imagem do candidato</h2>
+                  <p className="copy-v2">Upload visual para compor a ficha.</p>
+                </div>
+              </div>
+              <label className="label-v2">
+                <span>Arquivo</span>
+                <Controller
+                  name="avatar"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => {
+                        field.onChange(event.target.files);
+                        syncAvatarPreview(event);
+                      }}
+                      className="field file:mr-3 file:border-0 file:bg-black file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
                     />
-                  </div>
-                </section>
-              </div>
+                  )}
+                />
+              </label>
+            </section>
 
-              <section className="panel-card surface-card">
-                <div className="panel-heading">
-                  <div>
-                    <span className="section-kicker">Conteudo</span>
-                    <h2>Resumo e habilidades</h2>
-                  </div>
+            <section className="section-v2">
+              <div className="line-v2">
+                <div>
+                  <h2 className="title-v2">Contato</h2>
+                  <p className="copy-v2">Dados usados na consulta da ficha.</p>
                 </div>
-
-                <div className="split-grid mt-6">
-                  <div className="field-group">
-                    <label className="field-label">Resumo profissional</label>
-                    <Textarea {...register("resumo")} placeholder="Descreva a experiencia e principais competencias" />
-                    {errors.resumo && <p className="error-text">{errors.resumo.message?.toString()}</p>}
-                  </div>
-
-                  <div className="field-group">
-                    <label className="field-label">Habilidades</label>
-                    <Input {...register("habilidades")} type="text" placeholder="React, Next.js, TypeScript" />
-                    <p className="hint-text">Separe as habilidades por virgula.</p>
-                    {errors.habilidades && <p className="error-text">{errors.habilidades.message?.toString()}</p>}
-                  </div>
-                </div>
-              </section>
-
-              <div className="split-grid">
-                <section className="panel-card surface-card">
-                  <div className="array-heading">
-                    <div>
-                      <span className="section-kicker">Array</span>
-                      <h2 className="array-title">Experiencias profissionais</h2>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => experiencias.append({ empresa: "", cargo: "", periodo: "", descricao: "" })}
-                    >
-                      Adicionar
-                    </Button>
-                  </div>
-
-                  <div className="array-list mt-6">
-                    {experiencias.fields.map((field, index) => (
-                      <div key={field.id} className="array-card">
-                        <div className="array-heading">
-                          <span className="status-chip">Experiencia {index + 1}</span>
-                          <Button type="button" variant="danger" onClick={() => experiencias.remove(index)}>
-                            Remover
-                          </Button>
-                        </div>
-
-                        <div className="field-grid mt-5 md:grid-cols-2">
-                          <div className="field-group">
-                            <label className="field-label">Empresa</label>
-                            <Input {...register(`experiencias.${index}.empresa` as const)} type="text" placeholder="Nome da empresa" />
-                          </div>
-                          <div className="field-group">
-                            <label className="field-label">Cargo</label>
-                            <Input {...register(`experiencias.${index}.cargo` as const)} type="text" placeholder="Cargo ocupado" />
-                          </div>
-                        </div>
-
-                        <div className="field-grid mt-4 md:grid-cols-2">
-                          <div className="field-group">
-                            <label className="field-label">Periodo</label>
-                            <Input {...register(`experiencias.${index}.periodo` as const)} type="text" placeholder="2021 - 2024" />
-                          </div>
-                          <div className="field-group">
-                            <label className="field-label">Descricao</label>
-                            <Textarea
-                              {...register(`experiencias.${index}.descricao` as const)}
-                              placeholder="Descreva responsabilidades e resultados"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    {errors.experiencias && <p className="error-text">{extractErrorMessage(errors.experiencias)}</p>}
-                  </div>
-                </section>
-
-                <section className="panel-card surface-card">
-                  <div className="array-heading">
-                    <div>
-                      <span className="section-kicker">Array</span>
-                      <h2 className="array-title">Formacao academica</h2>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => formacoes.append({ instituicao: "", curso: "", periodo: "" })}
-                    >
-                      Adicionar
-                    </Button>
-                  </div>
-
-                  <div className="array-list mt-6">
-                    {formacoes.fields.map((field, index) => (
-                      <div key={field.id} className="array-card">
-                        <div className="array-heading">
-                          <span className="status-chip">Formacao {index + 1}</span>
-                          <Button type="button" variant="danger" onClick={() => formacoes.remove(index)}>
-                            Remover
-                          </Button>
-                        </div>
-
-                        <div className="field-grid mt-5">
-                          <div className="field-group">
-                            <label className="field-label">Instituicao</label>
-                            <Input {...register(`formacoes.${index}.instituicao` as const)} type="text" placeholder="Instituicao" />
-                          </div>
-                          <div className="field-grid md:grid-cols-2">
-                            <div className="field-group">
-                              <label className="field-label">Curso</label>
-                              <Input {...register(`formacoes.${index}.curso` as const)} type="text" placeholder="Curso" />
-                            </div>
-                            <div className="field-group">
-                              <label className="field-label">Periodo</label>
-                              <Input {...register(`formacoes.${index}.periodo` as const)} type="text" placeholder="Periodo" />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    {errors.formacoes && <p className="error-text">{extractErrorMessage(errors.formacoes)}</p>}
-                  </div>
-                </section>
               </div>
+              <div className="triple-v2">
+                <label className="label-v2">
+                  <span>E-mail</span>
+                  <Input {...register("email")} type="email" placeholder="nome@exemplo.com" />
+                  {errors.email && <span className="error-text">{errors.email.message?.toString()}</span>}
+                </label>
+                <label className="label-v2">
+                  <span>Telefone</span>
+                  <Controller
+                    name="telefone"
+                    control={control}
+                    render={({ field }) => <IMaskInput {...field} mask="(00) 00000-0000" placeholder="(99) 99999-9999" className="field" />}
+                  />
+                  {errors.telefone && <span className="error-text">{errors.telefone.message?.toString()}</span>}
+                </label>
+                <label className="label-v2">
+                  <span>CPF</span>
+                  <Controller
+                    name="cpf"
+                    control={control}
+                    render={({ field }) => <IMaskInput {...field} mask="000.000.000-00" placeholder="000.000.000-00" className="field" />}
+                  />
+                  {errors.cpf && <span className="error-text">{errors.cpf.message?.toString()}</span>}
+                </label>
+              </div>
+            </section>
 
-              <div className="form-actions justify-end">
-                <Button type="submit" disabled={isSubmitting || !isValid}>
-                  {isSubmitting ? "Salvando..." : "Salvar curriculo"}
+            <section className="light-v2">
+              <div className="line-v2">
+                <div>
+                  <h2 className="title-v2">Habilidades</h2>
+                  <p className="copy-v2">Informe separando por virgula.</p>
+                </div>
+              </div>
+              <label className="label-v2">
+                <span>Lista de habilidades</span>
+                <Input {...register("habilidades")} type="text" placeholder="React, Next.js, TypeScript" />
+                <span className="hint-v2">Exemplo: React, SQL, Power BI</span>
+                {errors.habilidades && <span className="error-text">{errors.habilidades.message?.toString()}</span>}
+              </label>
+            </section>
+
+            <section className="section-v2">
+              <div className="line-v2">
+                <div>
+                  <h2 className="title-v2">Experiencias profissionais</h2>
+                  <p className="copy-v2">Adicione ou remova linhas conforme necessario.</p>
+                </div>
+                <Button type="button" variant="secondary" onClick={() => workCollection.append({ empresa: "", cargo: "", periodo: "", descricao: "" })}>
+                  Adicionar
                 </Button>
               </div>
-            </form>
-          </section>
+              <div className="field-stack-v2">
+                {workCollection.fields.map((field, index) => (
+                  <div key={field.id} className="item-v2">
+                    <div className="line-v2">
+                      <strong>Experiencia {index + 1}</strong>
+                      <Button type="button" variant="danger" onClick={() => workCollection.remove(index)}>
+                        Remover
+                      </Button>
+                    </div>
+                    <div className="pair-v2">
+                      <Input {...register(`experiencias.${index}.empresa` as const)} type="text" placeholder="Empresa" />
+                      <Input {...register(`experiencias.${index}.cargo` as const)} type="text" placeholder="Cargo" />
+                    </div>
+                    <div className="pair-v2">
+                      <Input {...register(`experiencias.${index}.periodo` as const)} type="text" placeholder="2021 - 2024" />
+                      <Textarea {...register(`experiencias.${index}.descricao` as const)} placeholder="Descricao" />
+                    </div>
+                  </div>
+                ))}
+                {errors.experiencias && <span className="error-text">{extractFirstIssue(errors.experiencias)}</span>}
+              </div>
+            </section>
+
+            <section className="section-v2">
+              <div className="line-v2">
+                <div>
+                  <h2 className="title-v2">Formacao academica</h2>
+                  <p className="copy-v2">Mantenha os cursos em ordem livre.</p>
+                </div>
+                <Button type="button" variant="secondary" onClick={() => studyCollection.append({ instituicao: "", curso: "", periodo: "" })}>
+                  Adicionar
+                </Button>
+              </div>
+              <div className="field-stack-v2">
+                {studyCollection.fields.map((field, index) => (
+                  <div key={field.id} className="item-v2">
+                    <div className="line-v2">
+                      <strong>Formacao {index + 1}</strong>
+                      <Button type="button" variant="danger" onClick={() => studyCollection.remove(index)}>
+                        Remover
+                      </Button>
+                    </div>
+                    <div className="field-stack-v2">
+                      <Input {...register(`formacoes.${index}.instituicao` as const)} type="text" placeholder="Instituicao" />
+                      <div className="pair-v2">
+                        <Input {...register(`formacoes.${index}.curso` as const)} type="text" placeholder="Curso" />
+                        <Input {...register(`formacoes.${index}.periodo` as const)} type="text" placeholder="Periodo" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {errors.formacoes && <span className="error-text">{extractFirstIssue(errors.formacoes)}</span>}
+              </div>
+            </section>
+
+            <div className="actions-end-v2">
+              <Button type="submit" disabled={isSubmitting || !isValid}>
+                {isSubmitting ? "Salvando..." : "Salvar curriculo"}
+              </Button>
+            </div>
+          </form>
         </div>
       </main>
-
       <Footer />
     </div>
   );

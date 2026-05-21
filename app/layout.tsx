@@ -8,13 +8,13 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   title: "NovaGlow Curriculos",
-  description: "Sistema academico de curriculos em estilo startup moderna.",
+  description: "Sistema lateral simples para cadastro e consulta de curriculos.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body suppressHydrationWarning={true} className="theme-v2 min-h-full antialiased">
+    <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body suppressHydrationWarning={true}>
         {children}
         <AppToaster />
       </body>

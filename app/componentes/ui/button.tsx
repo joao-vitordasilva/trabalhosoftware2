@@ -1,17 +1,23 @@
 import type { ButtonHTMLAttributes } from "react";
 
-type Variant = "primary" | "secondary" | "danger";
+type VariantB = "primary" | "secondary" | "danger";
 
-function getVariantClassName(variant: Variant) {
-  if (variant === "secondary") return "btn-secondary";
-  if (variant === "danger") return "btn-danger";
-  return "btn-primary";
-}
-
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: Variant;
+const classesB: Record<VariantB, string> = {
+  primary: "btn-primary",
+  secondary: "btn-secondary",
+  danger: "btn-danger",
 };
 
-export function Button({ className = "", variant = "primary", ...props }: ButtonProps) {
-  return <button className={`${getVariantClassName(variant)} ${className}`.trim()} {...props} />;
+type PropsB = ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: VariantB;
+};
+
+function mergeB(variant: VariantB, customClass: string) {
+  const partsB = [classesB[variant]];
+  if (customClass) partsB.push(customClass);
+  return partsB.join(" ").trim();
+}
+
+export function Button({ className = "", variant = "primary", ...props }: PropsB) {
+  return <button data-ui="button-2" className={mergeB(variant, className)} {...props} />;
 }

@@ -1,7 +1,3 @@
 export default function Footer() {
-  return (
-    <footer className="app-footer">
-      <div className="app-footer__inner">NovaGlow Curriculos | Gradientes, hero impactante e experiencia mais aspiracional.</div>
-    </footer>
-  );
+  return <footer className="footer-v2">NovaGlow Curriculos | menu lateral | painel principal com leitura vertical</footer>;
 }

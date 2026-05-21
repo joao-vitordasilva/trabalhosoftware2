@@ -8,170 +8,127 @@ import { FiBriefcase, FiMail, FiPhone, FiTrash2 } from "react-icons/fi";
 import { toast } from "sonner";
 import Header from "../../../../componentes/header";
 import Footer from "../../../../componentes/footer";
-import { findCurriculo, loadCurriculos, saveCurriculos } from "../data";
 import { Button } from "../../../../componentes/ui/button";
+import { findCurriculo, loadCurriculos, saveCurriculos } from "../data";
 
 export default function CurriculoDetalhesPage() {
-  const [curriculo, setCurriculo] = useState(() => null as null | ReturnType<typeof findCurriculo>);
-  const [isLoading, setIsLoading] = useState(true);
-  const params = useParams();
+  const [selected, setSelected] = useState(() => null as null | ReturnType<typeof findCurriculo>);
+  const [loading, setLoading] = useState(true);
+  const routeParams = useParams();
   const router = useRouter();
-  const curriculoId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const id = Array.isArray(routeParams.id) ? routeParams.id[0] : routeParams.id;
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!curriculoId) {
-        setCurriculo(null);
-        setIsLoading(false);
+    const task = setTimeout(() => {
+      if (!id) {
+        setSelected(null);
+        setLoading(false);
         return;
       }
-
-      const foundCurriculo = findCurriculo(curriculoId) ?? null;
-      setCurriculo(foundCurriculo);
-      setIsLoading(false);
+      setSelected(findCurriculo(id) ?? null);
+      setLoading(false);
     }, 0);
-
-    return () => clearTimeout(timer);
-  }, [curriculoId]);
+    return () => clearTimeout(task);
+  }, [id]);
 
   const handleDelete = () => {
-    if (!curriculo) return;
-
-    const current = loadCurriculos().filter((item) => item.id !== curriculo.id);
-    saveCurriculos(current);
+    if (!selected) return;
+    saveCurriculos(loadCurriculos().filter((item) => item.id !== selected.id));
     toast.success("Curriculo excluido com sucesso.");
     router.push("/sistema/paginas/curriculos");
   };
 
   return (
-    <div className="site-frame flex min-h-screen flex-col">
+    <div className="site-shell">
       <Header />
-
-      <main className="site-main">
-        <div className="shell page-space">
-          <section className="page-panel">
-            <div className="page-top">
-              <div className="max-w-3xl">
-                <span className="section-kicker">Detalhes</span>
-                <h1 className="section-title">Pagina dinamica com tudo o que foi cadastrado.</h1>
-              </div>
-
-              <div className="detail-actions">
-                <Link href="/sistema/paginas/curriculos" className="btn-secondary">
-                  Voltar para a lista
-                </Link>
-                <Button type="button" variant="danger" onClick={handleDelete}>
-                  <FiTrash2 />
-                  Excluir curriculo
-                </Button>
-              </div>
-            </div>
-
-            {isLoading ? (
-              <div className="surface-card empty-state mt-8">Carregando curriculo...</div>
-            ) : curriculo ? (
-              <div className="stack-list mt-8">
-                <section className="surface-card detail-hero">
-                  <div className="detail-header">
-                    <div className="detail-person">
-                      <div className="avatar-frame">
-                        <Image src={curriculo.avatar} alt={curriculo.nome} fill className="object-cover" />
-                      </div>
-
-                      <div>
-                        <span className="section-kicker">{curriculo.cargo}</span>
-                        <h2>{curriculo.nome}</h2>
-                        <div className="chip-row mt-3">
-                          <span className="chip">
-                            <FiMail />
-                            {curriculo.email}
-                          </span>
-                          <span className="chip">
-                            <FiBriefcase />
-                            {curriculo.cargo}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <span className="status-chip">ID: {curriculo.id}</span>
-                  </div>
-                </section>
-
-                <section className="details-grid">
-                  <article className="surface-card">
-                    <h3 className="m-0 text-xl font-semibold">Contato e identificacao</h3>
-                    <div className="detail-meta mt-5">
-                      <div className="surface-card">
-                        <strong className="flex items-center gap-2">
-                          <FiPhone />
-                          Telefone
-                        </strong>
-                        <p className="detail-copy m-0 mt-2">{curriculo.telefone}</p>
-                      </div>
-                      <div className="surface-card">
-                        <strong>CPF</strong>
-                        <p className="detail-copy m-0 mt-2">{curriculo.cpf}</p>
-                      </div>
-                    </div>
-                  </article>
-
-                  <article className="surface-card">
-                    <h3 className="m-0 text-xl font-semibold">Resumo profissional</h3>
-                    <p className="detail-copy mt-5">{curriculo.resumo}</p>
-                  </article>
-                </section>
-
-                <section className="split-grid">
-                  <article className="surface-card">
-                    <h3 className="m-0 text-xl font-semibold">Experiencias profissionais</h3>
-                    <div className="stack-list mt-5">
-                      {curriculo.experiencias.map((item, index) => (
-                        <div key={index} className="array-card">
-                          <strong>{item.empresa}</strong>
-                          <p className="detail-copy m-0 mt-2">
-                            {item.cargo} | {item.periodo}
-                          </p>
-                          <p className="detail-copy m-0 mt-3">{item.descricao}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </article>
-
-                  <article className="surface-card">
-                    <h3 className="m-0 text-xl font-semibold">Formacao academica</h3>
-                    <div className="stack-list mt-5">
-                      {curriculo.formacoes.map((item, index) => (
-                        <div key={index} className="array-card">
-                          <strong>{item.instituicao}</strong>
-                          <p className="detail-copy m-0 mt-2">{item.curso}</p>
-                          <p className="detail-copy m-0 mt-3">{item.periodo}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </article>
-                </section>
-
-                <section className="surface-card">
-                  <h3 className="m-0 text-xl font-semibold">Habilidades</h3>
-                  <div className="skill-row mt-4">
-                    {curriculo.habilidades.map((skill) => (
-                      <span key={skill} className="skill-chip">
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </section>
-              </div>
-            ) : (
-              <div className="surface-card empty-state mt-8">
-                Curriculo nao encontrado. Verifique se o ID esta correto.
-              </div>
-            )}
-          </section>
+      <main className="main-v2">
+        <div className="actions-v2">
+          <Link href="/sistema/paginas/curriculos" className="btn-secondary">
+            Voltar para a lista
+          </Link>
+          <Button type="button" variant="danger" onClick={handleDelete}>
+            <FiTrash2 />
+            Excluir curriculo
+          </Button>
         </div>
-      </main>
 
+        {loading ? (
+          <div className="empty-box">Carregando curriculo...</div>
+        ) : selected ? (
+          <>
+            <section className="detail-hero-v2">
+              <div className="avatar-v2">
+                <Image src={selected.avatar} alt={selected.nome} fill className="object-cover" />
+              </div>
+              <div>
+                <p className="copy-v2">Ficha do talento</p>
+                <h1 className="title-v2">{selected.nome}</h1>
+                <div className="chips-v2">
+                  <span className="chip"><FiBriefcase /> {selected.cargo}</span>
+                  <span className="chip"><FiMail /> {selected.email}</span>
+                </div>
+              </div>
+            </section>
+
+            <section className="detail-grid-v2">
+              <aside className="aside-v2">
+                <h2 className="title-v2">Contato</h2>
+                <div className="listbox-v2">
+                  <p><FiMail /> {selected.email}</p>
+                  <p><FiPhone /> {selected.telefone}</p>
+                  <p><strong>CPF:</strong> {selected.cpf}</p>
+                </div>
+              </aside>
+
+              <div className="panel-v2 soft-v2">
+                <h2 className="title-v2">Resumo profissional</h2>
+                <p className="copy-v2">{selected.resumo}</p>
+              </div>
+            </section>
+
+            <section className="detail-grid-v2">
+              <div className="panel-v2 soft-v2">
+                <h2 className="title-v2">Experiencias</h2>
+                <div className="listbox-v2">
+                  {selected.experiencias.map((item, index) => (
+                    <div key={index} className="mini-v2">
+                      <strong>{item.empresa}</strong>
+                      <p className="copy-v2">{item.cargo} | {item.periodo}</p>
+                      <p className="copy-v2">{item.descricao}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="panel-v2 soft-v2">
+                <h2 className="title-v2">Formacao</h2>
+                <div className="listbox-v2">
+                  {selected.formacoes.map((item, index) => (
+                    <div key={index} className="mini-v2">
+                      <strong>{item.instituicao}</strong>
+                      <p className="copy-v2">{item.curso}</p>
+                      <p className="copy-v2">{item.periodo}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="panel-v2 soft-v2">
+              <h2 className="title-v2">Habilidades</h2>
+              <div className="skills-v2">
+                {selected.habilidades.map((skill) => (
+                  <span key={skill} className="chip">
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            </section>
+          </>
+        ) : (
+          <div className="empty-box">Curriculo nao encontrado. Verifique se o ID esta correto.</div>
+        )}
+      </main>
       <Footer />
     </div>
   );
